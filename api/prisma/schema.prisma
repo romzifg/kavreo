@@ -1,0 +1,237 @@
+// Skema database Content Planner
+// Prisma 7: URL koneksi dibaca dari prisma.config.ts (DATABASE_URL)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  APPROVER
+  SUPERADMIN
+}
+
+enum ContentType {
+  SCRIPT
+  IDEA
+}
+
+// DRAFT     : masih disusun user
+// SUBMITTED : menunggu keputusan approval
+// REVISION  : ditolak approval, kembali ke user untuk diperbaiki
+// APPROVED  : disetujui
+enum ReviewStatus {
+  DRAFT
+  SUBMITTED
+  REVISION
+  APPROVED
+}
+
+enum ItemStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReviewAction {
+  SUBMIT
+  COMMENT
+  APPROVE
+  REJECT
+}
+
+enum Platform {
+  TIKTOK
+  INSTAGRAM_REELS
+  YOUTUBE_SHORTS
+  FACEBOOK_REELS
+  OTHER
+}
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  phone           String?
+  passwordHash    String   @map("password_hash")
+  role            Role     @default(USER)
+  isActive        Boolean  @default(true) @map("is_active")
+  notifyEmail     Boolean  @default(true) @map("notify_email")
+  notifyWhatsapp  Boolean  @default(false) @map("notify_whatsapp")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  contents           Content[]
+  calendars          Calendar[]
+  contentAssignments ContentApprover[]
+  calendarAssignments CalendarApprover[]
+  contentComments    ContentComment[]
+  calendarComments   CalendarComment[]
+  reviewedItems      CalendarItem[]    @relation("ItemReviewer")
+  notifications      Notification[]
+
+  @@map("users")
+}
+
+model Content {
+  id            String       @id @default(cuid())
+  type          ContentType
+  title         String
+  platform      Platform     @default(TIKTOK)
+  category      String?
+  // Khusus SCRIPT
+  hook          String?
+  body          String?
+  cta           String?
+  durationSec   Int?         @map("duration_sec")
+  tone          String?
+  // Khusus IDEA
+  description   String?
+  // Umum
+  hashtags      String[]     @default([])
+  status        ReviewStatus @default(DRAFT)
+  revisionCount Int          @default(0) @map("revision_count")
+  submittedAt   DateTime?    @map("submitted_at")
+  approvedAt    DateTime?    @map("approved_at")
+  authorId      String       @map("author_id")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  approvers ContentApprover[]
+  comments  ContentComment[]
+  calendarItems CalendarItem[]
+
+  @@index([authorId, type, status])
+  @@index([type, status])
+  @@map("contents")
+}
+
+model ContentApprover {
+  contentId  String   @map("content_id")
+  approverId String   @map("approver_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  content  Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  approver User    @relation(fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@id([contentId, approverId])
+  @@index([approverId])
+  @@map("content_approvers")
+}
+
+model ContentComment {
+  id        String       @id @default(cuid())
+  contentId String       @map("content_id")
+  authorId  String       @map("author_id")
+  action    ReviewAction @default(COMMENT)
+  message   String?
+  round     Int          @default(0)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([contentId, createdAt])
+  @@map("content_comments")
+}
+
+model Calendar {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime     @map("start_date") @db.Date
+  endDate     DateTime     @map("end_date") @db.Date
+  status      ReviewStatus @default(DRAFT)
+  revisionCount Int        @default(0) @map("revision_count")
+  submittedAt DateTime?    @map("submitted_at")
+  approvedAt  DateTime?    @map("approved_at")
+  authorId    String       @map("author_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  author    User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  items     CalendarItem[]
+  approvers CalendarApprover[]
+  comments  CalendarComment[]
+
+  @@index([authorId, status])
+  @@map("calendars")
+}
+
+model CalendarApprover {
+  calendarId String   @map("calendar_id")
+  approverId String   @map("approver_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  calendar Calendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  approver User     @relation(fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@id([calendarId, approverId])
+  @@index([approverId])
+  @@map("calendar_approvers")
+}
+
+model CalendarItem {
+  id           String      @id @default(cuid())
+  calendarId   String      @map("calendar_id")
+  date         DateTime    @db.Date
+  title        String
+  platform     Platform    @default(TIKTOK)
+  format       String?
+  notes        String?
+  contentId    String?     @map("content_id")
+  status       ItemStatus  @default(DRAFT)
+  reviewNote   String?     @map("review_note")
+  reviewedById String?     @map("reviewed_by_id")
+  reviewedAt   DateTime?   @map("reviewed_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  calendar   Calendar  @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  content    Content?  @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  reviewedBy User?     @relation("ItemReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  comments   CalendarComment[]
+
+  @@index([calendarId, date])
+  @@map("calendar_items")
+}
+
+model CalendarComment {
+  id         String       @id @default(cuid())
+  calendarId String       @map("calendar_id")
+  itemId     String?      @map("item_id")
+  authorId   String       @map("author_id")
+  action     ReviewAction @default(COMMENT)
+  message    String?
+  round      Int          @default(0)
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  calendar Calendar      @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  item     CalendarItem? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([calendarId, createdAt])
+  @@map("calendar_comments")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  title     String
+  message   String
+  link      String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}

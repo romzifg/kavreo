@@ -1,0 +1,359 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: planner --default, planner-dark --prefersdark;
+  logs: false;
+}
+
+@plugin "daisyui/theme" {
+  name: "planner";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(97.8% 0.005 285);
+  --color-base-300: oklch(93.5% 0.01 285);
+  --color-base-content: oklch(24% 0.025 285);
+  --color-primary: oklch(57% 0.23 277);
+  --color-primary-content: oklch(98% 0.01 277);
+  --color-secondary: oklch(70% 0.18 340);
+  --color-secondary-content: oklch(98% 0.01 340);
+  --color-accent: oklch(76% 0.14 178);
+  --color-accent-content: oklch(24% 0.05 178);
+  --color-neutral: oklch(27% 0.03 285);
+  --color-neutral-content: oklch(96% 0.01 285);
+  --color-info: oklch(70% 0.15 235);
+  --color-info-content: oklch(20% 0.05 235);
+  --color-success: oklch(68% 0.17 155);
+  --color-success-content: oklch(20% 0.06 155);
+  --color-warning: oklch(82% 0.16 80);
+  --color-warning-content: oklch(28% 0.07 80);
+  --color-error: oklch(63% 0.22 20);
+  --color-error-content: oklch(98% 0.01 20);
+  --radius-selector: 1rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "planner-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: oklch(21% 0.022 285);
+  --color-base-200: oklch(17.5% 0.02 285);
+  --color-base-300: oklch(28% 0.028 285);
+  --color-base-content: oklch(93% 0.01 285);
+  --color-primary: oklch(68% 0.19 277);
+  --color-primary-content: oklch(16% 0.04 277);
+  --color-secondary: oklch(72% 0.17 340);
+  --color-secondary-content: oklch(18% 0.04 340);
+  --color-accent: oklch(78% 0.13 178);
+  --color-accent-content: oklch(20% 0.05 178);
+  --color-neutral: oklch(32% 0.03 285);
+  --color-neutral-content: oklch(95% 0.01 285);
+  --color-info: oklch(72% 0.14 235);
+  --color-info-content: oklch(18% 0.05 235);
+  --color-success: oklch(72% 0.16 155);
+  --color-success-content: oklch(18% 0.06 155);
+  --color-warning: oklch(80% 0.15 80);
+  --color-warning-content: oklch(24% 0.07 80);
+  --color-error: oklch(68% 0.2 20);
+  --color-error-content: oklch(18% 0.06 20);
+  --radius-selector: 1rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Kartu standar: bersih, border halus, tanpa bayangan berat */
+.surface {
+  background: var(--color-base-100);
+  border: 1px solid var(--color-base-300);
+  border-radius: var(--radius-box);
+  box-shadow: 0 4px 24px color-mix(in oklab, var(--color-primary) 4%, transparent);
+}
+
+.brand-mark {
+  background: linear-gradient(135deg, #8062ff, #5744dc);
+  box-shadow: 0 5px 14px #7155ef25;
+}
+
+.creator-workspace,
+.auth-form-panel {
+  background:
+    radial-gradient(ellipse at 90% 0%, color-mix(in oklab, var(--color-secondary) 9%, transparent), transparent 45%),
+    radial-gradient(ellipse at 0% 35%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 55%),
+    var(--color-base-200);
+}
+
+.creator-sidebar {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--color-primary) 5%, var(--color-base-100)), var(--color-base-100) 45%);
+}
+
+.creator-nav-active {
+  background: linear-gradient(110deg, #7052eb, #5842cb) !important;
+  color: white !important;
+  box-shadow: 0 5px 15px #7052eb25;
+}
+
+.creator-note {
+  border: 1px solid color-mix(in oklab, var(--color-primary) 15%, var(--color-base-300));
+  background: linear-gradient(120deg, color-mix(in oklab, var(--color-primary) 10%, var(--color-base-100)), color-mix(in oklab, var(--color-secondary) 8%, var(--color-base-100)));
+}
+
+.page-heading {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 1rem;
+}
+
+.auth-studio {
+  background:
+    radial-gradient(ellipse at 100% 90%, #c67dba55, transparent 50%),
+    radial-gradient(ellipse at 0% 20%, #946dff60, transparent 65%),
+    linear-gradient(145deg, #30205f, #4c318f 60%, #372168);
+}
+
+.auth-studio::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(#ffffff20 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to bottom, transparent, black);
+}
+
+.studio-board {
+  background: linear-gradient(135deg, #ffffff18, #ffffff08);
+  box-shadow: 0 24px 60px #160a3a30;
+  backdrop-filter: blur(12px);
+}
+
+.studio-play {
+  background: linear-gradient(150deg, #ecaf8b, #b575c9 45%, #7951c9);
+  box-shadow: inset 0 0 0 5px #ffffff15;
+  transform: rotate(6deg);
+}
+
+.creator-banner {
+  background: linear-gradient(115deg, #39246d, #6550b6 65%, #9a67ad);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.creator-banner::after {
+  content: "";
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  right: -60px;
+  top: -90px;
+  border: 35px solid #ffffff0c;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Native dialog lives in the top layer, outside animated page containers. */
+.kavreo-modal {
+  background: transparent;
+}
+
+.kavreo-modal::backdrop {
+  display: block;
+  background: #17112c66;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.kavreo-modal .modal-box {
+  border: 1px solid color-mix(in oklab, var(--color-primary) 15%, var(--color-base-300));
+  box-shadow: 0 24px 90px #17112c40;
+}
+
+.kavreo-modal .modal-box>div:first-child {
+  background: linear-gradient(110deg, color-mix(in oklab, var(--color-primary) 7%, var(--color-base-100)), var(--color-base-100));
+}
+
+.soft-ring:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--color-primary) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.rich-text-editor:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+
+.rich-text-content {
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
+.rich-text-input {
+  min-height: 240px;
+  padding: 1rem 1.25rem;
+  outline: none;
+}
+
+.rich-text-content p {
+  margin: 0.5em 0;
+}
+
+.rich-text-content> :first-child {
+  margin-top: 0;
+}
+
+.rich-text-content> :last-child {
+  margin-bottom: 0;
+}
+
+.rich-text-content strong,
+.rich-text-content b {
+  font-weight: 800;
+}
+
+.rich-text-content em,
+.rich-text-content i {
+  font-style: italic;
+}
+
+.rich-text-content h2,
+.rich-text-content h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 1em 0 0.5em;
+}
+
+.rich-text-content ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0.75em 0;
+}
+
+.rich-text-content ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0.75em 0;
+}
+
+.rich-text-content li {
+  padding-left: 0.25rem;
+}
+
+.rich-text-content blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding: 0.5rem 1rem;
+  margin: 1em 0;
+  background: color-mix(in oklab, var(--color-primary) 6%, transparent);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.rich-text-content mark {
+  background: #fde68a;
+  color: #422006;
+  padding: 0.1em 0.2em;
+  border-radius: 0.2em;
+}
+
+.rich-text-input:has(> p:only-child > br.ProseMirror-trailingBreak:only-child)::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
+  pointer-events: none;
+}
+
+/* Area aman untuk perangkat dengan notch / home indicator */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* Keep standalone PWA content clear of notches and the home indicator. */
+.app-topbar {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+.app-dock {
+  height: calc(4rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.app-main { padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px)); }
+.app-main :where(h1, h2, p) { overflow-wrap: anywhere; }
+.app-main :where(form, section, aside) { min-width: 0; }
+.app-main .grid > * { min-width: 0; }
+.kavreo-modal .modal-box { max-height: calc(100dvh - 2rem); }
+.kavreo-modal .modal-box > div:last-child { padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)); }
+.pwa-status {
+  left: max(0px, env(safe-area-inset-left, 0px));
+  bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 1024px) {
+  .app-main { padding-bottom: 2.5rem; }
+  .pwa-status { bottom: 1rem; right: 1rem; left: auto; }
+}
+@media (max-width: 639px) {
+  .mobile-brand .brand-mark { width: 2rem; height: 2rem; border-radius: 0.75rem; }
+  .mobile-brand .brand-mark + span > span:first-child { font-size: 1.25rem; }
+  .mobile-brand .brand-mark + span > span:last-child { display: none; }
+  .mobile-brand a { padding: 0; }
+  .mobile-brand a > span { gap: 0.5rem; }
+  .app-topbar > div:last-child { flex-shrink: 0; }
+  .input, .select, .textarea, .rich-text-input { font-size: 16px; }
+  .rich-text-editor [role="toolbar"] .btn { min-width: 2.5rem; min-height: 2.5rem; }
+  .rich-text-input { padding: 0.875rem; min-height: 200px; }
+  .kavreo-modal .modal-box { max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 0.5rem); }
+}
+@media (pointer: coarse) {
+  .btn { min-height: 44px; }
+  .app-dock a { min-height: 48px; }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
+}
