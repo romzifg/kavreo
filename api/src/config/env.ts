@@ -14,6 +14,7 @@ const schema = z.object({
 
 	JWT_SECRET: z.string().min(16, "JWT_SECRET minimal 16 karakter"),
 	JWT_EXPIRES_IN: z.string().default("7d"),
+	AI_ENCRYPTION_KEY: z.string().min(32).optional(),
 	ALLOW_REGISTER: bool.default(true),
 
 	NOTIFY_EMAIL_ENABLED: bool.default(false),

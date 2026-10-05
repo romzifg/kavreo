@@ -6,6 +6,8 @@ import { contentRoutes } from "./modules/contents/content.routes";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes";
 import { notificationRoutes } from "./modules/notifications/notification.routes";
 import { userRoutes } from "./modules/users/user.routes";
+import { settingsRoutes } from "./modules/settings/settings.routes";
+import { aiRoutes } from "./modules/ai/ai.routes";
 
 export const routes = Router();
 
@@ -18,3 +20,5 @@ routes.use("/contents", contentRoutes);
 routes.use("/calendars", calendarRoutes);
 routes.use("/notifications", notificationRoutes);
 routes.use("/users", userRoutes);
+routes.use("/settings", settingsRoutes);
+routes.use("/ai", aiRoutes);

@@ -10,6 +10,8 @@ import { getErrorMessage } from "@/lib/api";
 import { ROLE_LABEL } from "@/lib/format";
 import { useAuthStore } from "@/stores/auth.store";
 import { InstallAppCard } from "@/components/pwa/InstallAppCard";
+import { ApplicationApprovalSettings } from "@/components/ui/ApplicationApprovalSettings";
+import { AiSettingsCard } from "@/components/ui/AiSettingsCard";
 
 const profileSchema = z.object({
 	name: z.string().trim().min(2, "Nama minimal 2 karakter"),
@@ -49,7 +51,11 @@ export function SettingsPage() {
 
 	const saveProfile = profile.handleSubmit(async (v) => {
 		try {
-			await updateProfile.mutateAsync({ ...v, phone: v.phone || null });
+			await updateProfile.mutateAsync({
+				name: v.name,
+				phone: v.phone || null,
+				...(user.role === "SUPERADMIN" ? { notifyEmail: v.notifyEmail, notifyWhatsapp: v.notifyWhatsapp } : {}),
+			});
 			toast.success("Profil diperbarui");
 		} catch (err) {
 			toast.error(getErrorMessage(err));
@@ -68,10 +74,12 @@ export function SettingsPage() {
 
 	return (
 		<>
-			<PageHeader title="Pengaturan" subtitle="Kelola profil dan preferensi notifikasimu." />
+			<PageHeader title="Pengaturan" subtitle={user.role === "SUPERADMIN" ? "Kelola profil, notifikasi, dan alur approval aplikasi." : "Kelola profil akunmu."} />
 
 			<div className="grid max-w-3xl gap-6">
 				<InstallAppCard />
+				{user.role === "SUPERADMIN" && <ApplicationApprovalSettings />}
+				{user.role === "SUPERADMIN" && <AiSettingsCard />}
 				<form onSubmit={saveProfile} className="surface grid gap-5 p-5 sm:p-6" noValidate>
 					<div className="flex items-center gap-4">
 						<Avatar name={user.name} size="lg" />
@@ -90,7 +98,7 @@ export function SettingsPage() {
 						</Field>
 					</div>
 
-					<fieldset className="grid gap-3 rounded-xl bg-base-200 p-4">
+					{user.role === "SUPERADMIN" && <fieldset className="grid gap-3 rounded-xl bg-base-200 p-4">
 						<legend className="px-1 text-sm font-bold">Notifikasi</legend>
 						<label className="flex cursor-pointer items-center justify-between gap-4">
 							<span>
@@ -109,7 +117,7 @@ export function SettingsPage() {
 						<p className="text-xs text-base-content/50">
 							Notifikasi di dalam aplikasi selalu aktif. Pengiriman email/WhatsApp berjalan jika sudah diaktifkan oleh admin sistem.
 						</p>
-					</fieldset>
+					</fieldset>}
 
 					<div>
 						<button className="btn btn-primary" disabled={updateProfile.isPending}>

@@ -6,9 +6,11 @@ import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useContent, useCreateContent, useSubmitContent, useUpdateContent, type ContentPayload } from "@/api/contents";
-import { ApproverPicker } from "@/components/ui/ApproverPicker";
+import { ApprovalAssignment } from "@/components/ui/ApprovalAssignment";
+import { useApplicationSettings } from "@/api/settings";
 import { Field } from "@/components/ui/Field";
 import { RichTextEditor } from "@/components/ui/RichTextEditor";
+import { AiAssistant } from "@/components/ui/AiAssistant";
 import { richTextToText } from "@/lib/rich-text";
 import { ErrorState, PageLoader } from "@/components/ui/Loading";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -100,6 +102,7 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 	const create = useCreateContent();
 	const update = useUpdateContent(id ?? "");
 	const submit = useSubmitContent(id ?? "");
+	const settings = useApplicationSettings();
 
 	const {
 		register,
@@ -107,6 +110,8 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 		handleSubmit,
 		reset,
 		watch,
+		setError,
+		clearErrors,
 		formState: { errors, isSubmitting },
 	} = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: emptyValues });
 
@@ -127,19 +132,33 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 
 	const isRevision = existing.data?.status === "REVISION";
 	const body = watch("body");
+	const aiContext = { feature: type, title: watch("title"), platform: watch("platform"), category: watch("category"), tone: watch("tone"), durationSec: watch("durationSec") };
 
 	async function save(values: FormValues, andSubmit: boolean) {
+		if (andSubmit && (!settings.data || settings.isError)) {
+			toast.error("Tidak dapat memuat pengaturan approval. Coba lagi sebelum mengajukan.");
+			return;
+		}
+		if (andSubmit && settings.data?.approvalEnabled && values.approverIds.length === 0) {
+			setError("approverIds", { message: "Pilih minimal 1 approver sebelum mengajukan" });
+			toast.error("Pilih minimal 1 approver sebelum mengajukan");
+			return;
+		}
+		clearErrors("approverIds");
 		const payload = toPayload(type, values);
+		if (settings.data?.approvalEnabled === false) payload.approverIds = [];
 		try {
 			let savedId = id;
+			let saved: Content;
 			if (isEdit) {
-				await update.mutateAsync(payload);
-				if (andSubmit) await submit.mutateAsync(undefined);
+				saved = await update.mutateAsync(payload);
+				if (andSubmit) saved = await submit.mutateAsync(undefined);
 			} else {
 				const created = await create.mutateAsync({ ...payload, submit: andSubmit });
 				savedId = created.id;
+				saved = created;
 			}
-			toast.success(andSubmit ? "Berhasil diajukan ke approval" : "Draft tersimpan");
+			toast.success(andSubmit ? (saved.status === "APPROVED" ? "Pengajuan langsung disetujui" : "Berhasil diajukan ke approval") : "Draft tersimpan");
 			navigate(`${base}/${savedId}`);
 		} catch (err) {
 			toast.error(getErrorMessage(err));
@@ -216,6 +235,8 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 										control={control}
 										name="body"
 										render={({ field }) => (
+											<>
+											<AiAssistant context={aiContext} value={field.value} onChange={field.onChange} />
 											<RichTextEditor
 												value={field.value}
 												onChange={field.onChange}
@@ -225,6 +246,7 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 												placeholder="Tulis ceritamu di sini…"
 												error={!!errors.body}
 											/>
+											</>
 										)}
 									/>
 								</Field>
@@ -247,6 +269,8 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 									control={control}
 									name="description"
 									render={({ field }) => (
+										<>
+										<AiAssistant context={aiContext} value={field.value} onChange={field.onChange} />
 										<RichTextEditor
 											value={field.value}
 											onChange={field.onChange}
@@ -256,6 +280,7 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 											placeholder="Mulai dari ide kecil yang menarik…"
 											error={!!errors.description}
 										/>
+										</>
 									)}
 								/>
 							</Field>
@@ -268,20 +293,14 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 				</div>
 
 				<aside className="grid content-start gap-6">
-					<section className="surface grid gap-3 p-5">
-						<div>
-							<h2 className="font-bold">Approval</h2>
-							<p className="text-xs text-base-content/60">Pilih satu atau lebih approval yang akan mereview.</p>
-						</div>
 						<Controller
 							control={control}
 							name="approverIds"
-							render={({ field }) => <ApproverPicker value={field.value} onChange={field.onChange} />}
+							render={({ field }) => <ApprovalAssignment value={field.value} onChange={(ids) => { field.onChange(ids); clearErrors("approverIds"); }} error={errors.approverIds?.message} />}
 						/>
-					</section>
 
 					<div className="surface grid gap-2 p-4">
-						<button type="button" className="btn btn-primary" disabled={busy} onClick={handleSubmit((v) => save(v, true))}>
+						<button type="button" className="btn btn-primary" disabled={busy || !settings.data || settings.isError} onClick={handleSubmit((v) => save(v, true))}>
 							{busy ? <span className="loading loading-spinner loading-sm" /> : <Send className="size-4" />}
 							{submitLabel}
 						</button>

@@ -6,6 +6,8 @@ import { pageMeta, publicUserSelect } from "../../common/utils";
 import { notifyUsers } from "../notifications/notification.service";
 import type { CreateContentInput, UpdateContentInput } from "./content.schema";
 import { richTextHasContent } from "../../common/rich-text";
+import { AUTO_APPROVAL_MESSAGE, assertRequiredApprovers } from "../../common/approval";
+import { getApplicationSettings } from "../settings/settings.service";
 
 const TYPE_LABEL: Record<ContentType, string> = { SCRIPT: "Script", IDEA: "Ide konten" };
 const TYPE_PATH: Record<ContentType, string> = { SCRIPT: "/scripts", IDEA: "/ideas" };
@@ -50,8 +52,9 @@ async function assertValidApprovers(ids: string[]) {
 function assertSubmittable(
 	data: { type: ContentType; hook?: string | null; body?: string | null; description?: string | null },
 	approverIds: string[],
+	approvalEnabled: boolean,
 ) {
-	if (approverIds.length === 0) throw badRequest("Pilih minimal 1 approver sebelum mengajukan");
+	assertRequiredApprovers(approvalEnabled, approverIds);
 	if (data.type === "SCRIPT" && !(data.hook?.trim() || richTextHasContent(data.body))) {
 		throw badRequest("Isi hook atau isi script sebelum mengajukan");
 	}
@@ -101,23 +104,29 @@ export async function getContent(user: AuthUser, id: string) {
 
 export async function createContent(user: AuthUser, input: CreateContentInput) {
 	await assertValidApprovers(input.approverIds);
-	if (input.submit) assertSubmittable(input, input.approverIds);
+	const { approvalEnabled } = await getApplicationSettings();
+	if (input.submit) assertSubmittable(input, input.approverIds, approvalEnabled);
 
 	const { approverIds, submit, ...data } = input;
+	const now = new Date();
 	const content = await prisma.content.create({
 		data: {
 			...data,
 			durationSec: data.durationSec ?? null,
 			authorId: user.id,
-			status: submit ? "SUBMITTED" : "DRAFT",
-			submittedAt: submit ? new Date() : null,
+			status: submit ? (approvalEnabled ? "SUBMITTED" : "APPROVED") : "DRAFT",
+			submittedAt: submit ? now : null,
+			approvedAt: submit && !approvalEnabled ? now : null,
 			approvers: { create: [...new Set(approverIds)].map((approverId) => ({ approverId })) },
-			comments: submit ? { create: { authorId: user.id, action: "SUBMIT", round: 0 } } : undefined,
+			comments: submit ? { create: [
+				{ authorId: user.id, action: "SUBMIT", round: 0 },
+				...(!approvalEnabled ? [{ authorId: user.id, action: "APPROVE" as const, message: AUTO_APPROVAL_MESSAGE, round: 0 }] : []),
+			] } : undefined,
 		},
 		include: detailInclude,
 	});
 
-	if (submit) {
+	if (submit && approvalEnabled) {
 		await notifyUsers(approverIds, {
 			title: `${TYPE_LABEL[content.type]} baru menunggu review`,
 			message: `${user.name} mengajukan "${content.title}".`,
@@ -175,22 +184,29 @@ export async function submitContent(user: AuthUser, id: string, message?: string
 	const content = await findOwn(user, id);
 	if (!EDITABLE.includes(content.status)) throw badRequest("Data ini sudah diajukan");
 	const approverIds = content.approvers.map((a) => a.approverId);
-	assertSubmittable(content, approverIds);
+	const { approvalEnabled } = await getApplicationSettings();
+	assertSubmittable(content, approverIds, approvalEnabled);
+	if (approvalEnabled) await assertValidApprovers(approverIds);
 
 	const isResubmit = content.status === "REVISION";
 	const round = content.revisionCount + (isResubmit ? 1 : 0);
+	const now = new Date();
 
 	await prisma.content.update({
 		where: { id },
 		data: {
-			status: "SUBMITTED",
-			submittedAt: new Date(),
+			status: approvalEnabled ? "SUBMITTED" : "APPROVED",
+			submittedAt: now,
+			approvedAt: approvalEnabled ? null : now,
 			revisionCount: round,
-			comments: { create: { authorId: user.id, action: "SUBMIT", message: message ?? null, round } },
+			comments: { create: [
+				{ authorId: user.id, action: "SUBMIT", message: message ?? null, round },
+				...(!approvalEnabled ? [{ authorId: user.id, action: "APPROVE" as const, message: AUTO_APPROVAL_MESSAGE, round }] : []),
+			] },
 		},
 	});
 
-	await notifyUsers(approverIds, {
+	if (approvalEnabled) await notifyUsers(approverIds, {
 		title: isResubmit ? `${TYPE_LABEL[content.type]} direvisi & diajukan ulang` : `${TYPE_LABEL[content.type]} baru menunggu review`,
 		message: `${user.name} mengajukan "${content.title}"${isResubmit ? ` (revisi ke-${round})` : ""}.`,
 		link: `${TYPE_PATH[content.type]}/${id}`,

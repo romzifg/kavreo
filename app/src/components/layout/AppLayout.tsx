@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, FileText, LayoutDashboard, Lightbulb, LogOut, Menu, Moon, Settings, Sun, Users, type LucideIcon } from "lucide-react";
+import { Bell, CalendarDays, FileText, LayoutDashboard, Lightbulb, LogOut, Menu, Moon, Settings, Sun, Users, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { useNotifications } from "@/api/notifications";
@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
 	{ to: "/ideas", label: "Ide Konten", icon: Lightbulb },
 	{ to: "/calendars", label: "Kalender", icon: CalendarDays },
 	{ to: "/users", label: "Pengguna", icon: Users, roles: ["SUPERADMIN"] },
+	{ to: "/ai-usage", label: "Pemakaian AI", icon: Sparkles, roles: ["SUPERADMIN"] },
 ];
 
 function Logo() {

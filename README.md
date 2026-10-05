@@ -19,7 +19,7 @@ content-planner/
 |---|---|
 | **User** | Membuat script / ide / kalender, memilih satu atau banyak Approval, mengajukan, merevisi, mengajukan ulang. Hanya melihat data buatannya sendiri. |
 | **Approval** | Melihat hanya data yang di-assign kepadanya (dan sudah diajukan). Menyetujui atau menolak dengan komentar. Pada kalender, memberi keputusan + catatan **per tanggal**. |
-| **Superadmin** | Mengelola pengguna (tambah, ubah role, nonaktifkan, hapus) dan melihat seluruh data (read-only). |
+| **Superadmin** | Mengelola pengguna, pengaturan approval dan AI, memantau pemakaian AI per pengguna, serta melihat seluruh konten (read-only). |
 
 **Alur script / ide:** `Draft → Menunggu review → (Ditolak → Perlu revisi → User perbaiki → ajukan ulang → Menunggu review) … → Disetujui`.
 Setiap pengajuan, penolakan (wajib beserta alasan), persetujuan, dan komentar tercatat di riwayat aktivitas, lengkap dengan nomor revisi.
@@ -88,7 +88,7 @@ WA_API_TOKEN=...            # token Fonnte
 # WA_API_URL=               # wajib untuk provider "webhook"; opsional untuk fonnte
 ```
 
-Syarat pengiriman ke satu user: channel aktif di `.env` **dan** user menyalakannya di menu **Pengaturan** (WhatsApp juga butuh nomor telepon). Provider `webhook` mengirim `POST` JSON `{ to, message, title, link }` ke `WA_API_URL`, sehingga mudah disambungkan ke gateway lain atau n8n. Kegagalan kirim hanya dicatat di log dan tidak menggagalkan request.
+Syarat pengiriman ke satu user: channel aktif di `.env` **dan** preferensi channel pada akun aktif (WhatsApp juga butuh nomor telepon). Bagian preferensi Email/WhatsApp pada menu **Pengaturan** hanya ditampilkan kepada Superadmin; API menolak perubahan preferensi tersebut dari User/Approval. Nilai preferensi akun yang sudah ada tetap berlaku. Provider `webhook` mengirim `POST` JSON `{ to, message, title, link }` ke `WA_API_URL`, sehingga mudah disambungkan ke gateway lain atau n8n. Kegagalan kirim hanya dicatat di log dan tidak menggagalkan request.
 
 Kejadian yang memicu notifikasi: pengajuan / pengajuan ulang (ke Approval), persetujuan, permintaan revisi, kalender selesai direview, dan komentar baru (ke pihak lawan).
 
@@ -103,6 +103,44 @@ cd app && npm ci && npm run build
 ```
 
 Checklist production: `NODE_ENV=production`, `JWT_SECRET` acak ≥ 32 karakter, `CORS_ORIGIN` = domain frontend, `APP_URL` = domain frontend, `TRUST_PROXY=1` jika di belakang reverse proxy, `VITE_API_URL` diisi sebelum build frontend, dan SPA fallback ke `index.html` di web server.
+
+## Pengaturan alur approval
+
+Superadmin dapat mengubah **Pengaturan → Alur approval aplikasi → Wajib approval**, lalu memilih **Simpan pengaturan approval**. Pengaturan ini tersimpan di database dan berlaku untuk script, ide, dan kalender seluruh pengguna; default-nya aktif.
+
+- **Aktif:** pengajuan wajib memilih minimal satu approver aktif dan menunggu review. Error ditampilkan jika approver belum dipilih. Validasi berlaku di tampilan dan API, termasuk pengajuan ulang.
+- **Nonaktif:** saat diajukan, script/ide langsung berstatus `APPROVED`; kalender dan semua jadwal yang belum disetujui juga langsung disetujui. Waktu persetujuan dan catatan persetujuan otomatis disimpan pada riwayat. Tidak ada notifikasi meminta review kepada approver.
+- **Draft:** approver selalu boleh kosong. Menyimpan draft tidak otomatis menyetujui data, bahkan ketika approval nonaktif.
+- Perubahan berlaku untuk pengajuan berikutnya. Data yang sudah menunggu review tidak otomatis diubah. Persyaratan isi konten dan minimal satu jadwal kalender tetap berlaku sebelum pengajuan.
+
+API: `GET /api/settings` dapat dibaca semua pengguna yang login; `PATCH /api/settings` dengan JSON `{ "approvalEnabled": true }` hanya untuk Superadmin. Flag approval dari payload pengguna tidak dapat menggantikan pengaturan server.
+
+Deployment versi ini memerlukan `npm run migrate:deploy` dari folder `api`, lalu build/restart backend dan build frontend. Migrasi menambahkan tabel `application_settings` tanpa mengubah data konten yang sudah ada.
+
+Pengujian integrasi: jalankan `npm run test:approval` dari folder `api`. Tes memerlukan PostgreSQL lokal dan izin membuat database sementara. Tes membuat database terpisah dengan nama acak, menguji API HTTP dengan database nyata, lalu menghapus database sementara setelah selesai; database aplikasi tidak digunakan untuk fixture tes.
+
+## Bantuan AI dan pemantauan
+
+Editor **Isi script** dan **Deskripsi ide** memiliki tombol **Bantu dengan AI**. Isi judul terlebih dahulu, tambahkan arahan jika perlu, lalu pilih **Buat saran**. Hasil muncul sebagai pratinjau; **Gunakan hasil** mengganti isi editor dan **Tambahkan** menambahkan ke akhir. Hasil belum disimpan atau diajukan sampai pengguna memilih tombol simpan/pengajuan. Batas karakter editor tetap berlaku.
+
+Pengaturan khusus Superadmin ada di **Pengaturan → Bantuan AI**:
+
+Sebelum menggunakan model lokal, pastikan server Ollama tetap berjalan. Pada Windows, jalankan `powershell -ExecutionPolicy Bypass -File .\Start-AI.ps1` dari root proyek untuk memeriksa atau menyalakan Ollama di background. Alternatifnya, jalankan `ollama serve` dan biarkan terminal tersebut terbuka. Script tidak mengunduh model; gunakan nama model yang sudah terpasang. Setelah komputer restart, jalankan lagi jika Ollama belum aktif.
+
+- Default: Ollama lokal, Base URL `http://localhost:11434`, model `llama3:latest`, output maksimal 800 token, timeout 180 detik, kuota 20 permintaan per pengguna per hari.
+- Jalankan Ollama di mesin backend dan pastikan model tersedia (`ollama list`; jika belum ada, install model yang dipilih melalui Ollama). Di instalasi lokal ini juga tersedia `mistral:latest`. Base URL diakses oleh **backend**, bukan langsung dari browser. Untuk Docker atau mesin backend lain, `localhost` merujuk ke mesin/container tersebut.
+- Protokol **OpenAI compatible / gateway** menggunakan Base URL yang berakhir pada path versi API, misalnya `https://api.openai.com/v1`, atau Gemini `https://generativelanguage.googleapis.com/v1beta/openai`. Nama model dan API key mengikuti penyedia. Endpoint akhir adalah `/chat/completions`. Gateway seperti LiteLLM dapat menghubungkan platform lain yang tidak menyediakan protokol ini.
+- Protokol **Anthropic / Claude** menggunakan Base URL `https://api.anthropic.com/v1`, endpoint `/messages`, key dan nama model dari Anthropic. Dukungan ini bukan klaim kompatibilitas otomatis dengan seluruh protokol penyedia; platform yang berbeda membutuhkan gateway atau adapter baru.
+- API cloud memerlukan HTTPS. Key disimpan terenkripsi AES-256-GCM dan tidak dikembalikan ke browser. Saat Base URL/protokol berubah, key lama dibuang agar tidak terkirim ke host baru; masukkan key baru jika diperlukan.
+- Untuk produksi, isi `AI_ENCRYPTION_KEY` dengan rahasia acak tetap minimal 32 karakter di environment backend. Jika kosong, enkripsi menggunakan turunan `JWT_SECRET`. Jangan mengganti rahasia enkripsi tanpa menyiapkan penyimpanan ulang API key. Backup database dan rahasia enkripsi secara terpisah.
+- Isi harga input/output **USD per satu juta token** dari penyedia untuk estimasi biaya. Harga tidak diambil otomatis; estimasi disimpan pada tiap permintaan sehingga perubahan harga tidak mengubah riwayat. Ollama tercatat biaya API USD 0, di luar listrik/perangkat.
+- **Uji koneksi & model** menjalankan generate singkat menggunakan pengaturan yang sudah disimpan, dan dicatat sebagai fitur `TEST`. Pengujian cloud dapat memakai kuota/biaya penyedia.
+
+Menu **Pemakaian AI** hanya tersedia untuk Superadmin. Dashboard menyediakan filter tanggal dan pengguna, ringkasan per pengguna, token input/output yang dilaporkan penyedia, estimasi biaya USD, dan riwayat dengan status/durasi/model. Token atau biaya yang tidak diketahui tidak diklaim sebagai nol. Prompt, isi script/deskripsi, dan hasil AI tidak disimpan pada log pemakaian.
+
+Kuota memakai reservasi transaksional database: permintaan gagal juga dihitung, maksimal satu permintaan berjalan per pengguna dan tiga secara keseluruhan. Kuota harian reset **00.00 UTC (07.00 WIB)**. Tidak ada retry otomatis yang dapat menimbulkan tagihan ganda. Permintaan yang terputus saat backend restart ditandai gagal setelah melewati 310 detik. Pada API cloud, konteks yang dimasukkan pengguna dikirim ke penyedia yang dipilih.
+
+Migrasi `20261005010000_ai_assistance` menambahkan konfigurasi dan tabel `ai_usage`. Jalankan migrasi production sebelum restart backend. Pengujian integrasi dengan database sementara mencakup adapter Ollama/compatible/Claude (respons cloud dimock), enkripsi, hak akses, kuota, dan pencatatan. Generate nyata tetap perlu diuji dengan key/model akun produksi.
 
 ## Mobile, tablet, dan PWA
 
@@ -162,4 +200,4 @@ Field **Isi script** dan **Deskripsi ide** menggunakan Tiptap rich text editor: 
 
 Pengujian sanitasi dan payload rich text: jalankan `node --import tsx --test src/common/rich-text.test.ts` dari folder `api`.
 
-Generator hook/script dengan AI, template script, ekspor kalender (PDF / iCal), paket langganan & multi-workspace untuk dijual ke banyak kreator, serta pengingat jadwal tayang (H-1) lewat notifikasi.
+Template script, ekspor kalender (PDF / iCal), paket langganan & multi-workspace untuk dijual ke banyak kreator, serta pengingat jadwal tayang (H-1) lewat notifikasi.

@@ -5,6 +5,8 @@ import type { AuthUser } from "../../common/types";
 import { pageMeta, parseDateOnly, publicUserSelect, toDateOnly } from "../../common/utils";
 import { notifyUsers } from "../notifications/notification.service";
 import type { CreateCalendarInput, ItemInput, UpdateCalendarInput, UpdateItemInput } from "./calendar.schema";
+import { AUTO_APPROVAL_MESSAGE, assertRequiredApprovers } from "../../common/approval";
+import { getApplicationSettings } from "../settings/settings.service";
 
 const EDITABLE: ReviewStatus[] = ["DRAFT", "REVISION"];
 const linkOf = (id: string) => `/calendars/${id}`;
@@ -137,6 +139,7 @@ export async function getCalendar(user: AuthUser, id: string) {
 
 export async function createCalendar(user: AuthUser, input: CreateCalendarInput) {
 	await assertValidApprovers(input.approverIds);
+	const { approvalEnabled } = await getApplicationSettings();
 	const start = parseDateOnly(input.startDate);
 	const end = parseDateOnly(input.endDate);
 	for (const item of input.items) {
@@ -144,10 +147,11 @@ export async function createCalendar(user: AuthUser, input: CreateCalendarInput)
 		await assertOwnContent(user.id, item.contentId);
 	}
 	if (input.submit) {
-		if (input.approverIds.length === 0) throw badRequest("Pilih minimal 1 approver sebelum mengajukan");
+		assertRequiredApprovers(approvalEnabled, input.approverIds);
 		if (input.items.length === 0) throw badRequest("Tambahkan minimal 1 jadwal konten sebelum mengajukan");
 	}
 
+	const now = new Date();
 	const cal = await prisma.calendar.create({
 		data: {
 			title: input.title,
@@ -155,8 +159,9 @@ export async function createCalendar(user: AuthUser, input: CreateCalendarInput)
 			startDate: start,
 			endDate: end,
 			authorId: user.id,
-			status: input.submit ? "SUBMITTED" : "DRAFT",
-			submittedAt: input.submit ? new Date() : null,
+			status: input.submit ? (approvalEnabled ? "SUBMITTED" : "APPROVED") : "DRAFT",
+			submittedAt: input.submit ? now : null,
+			approvedAt: input.submit && !approvalEnabled ? now : null,
 			approvers: { create: [...new Set(input.approverIds)].map((approverId) => ({ approverId })) },
 			items: {
 				create: input.items.map((i) => ({
@@ -166,15 +171,20 @@ export async function createCalendar(user: AuthUser, input: CreateCalendarInput)
 					format: i.format ?? null,
 					notes: i.notes ?? null,
 					contentId: i.contentId || null,
-					status: input.submit ? "PENDING" : "DRAFT",
+					status: input.submit ? (approvalEnabled ? "PENDING" : "APPROVED") : "DRAFT",
+					reviewedAt: input.submit && !approvalEnabled ? now : null,
+					reviewNote: input.submit && !approvalEnabled ? AUTO_APPROVAL_MESSAGE : null,
 				})),
 			},
-			comments: input.submit ? { create: { authorId: user.id, action: "SUBMIT", round: 0 } } : undefined,
+			comments: input.submit ? { create: [
+				{ authorId: user.id, action: "SUBMIT", round: 0 },
+				...(!approvalEnabled ? [{ authorId: user.id, action: "APPROVE" as const, message: AUTO_APPROVAL_MESSAGE, round: 0 }] : []),
+			] } : undefined,
 		},
 		select: { id: true, title: true },
 	});
 
-	if (input.submit) {
+	if (input.submit && approvalEnabled) {
 		await notifyUsers(input.approverIds, {
 			title: "Kalender konten baru menunggu review",
 			message: `${user.name} mengajukan kalender "${cal.title}".`,
@@ -286,30 +296,42 @@ export async function deleteItem(user: AuthUser, calendarId: string, itemId: str
 export async function submitCalendar(user: AuthUser, id: string, message?: string | null) {
 	const cal = await findOwnEditable(user, id);
 	const approverIds = cal.approvers.map((a) => a.approverId);
-	if (approverIds.length === 0) throw badRequest("Pilih minimal 1 approver sebelum mengajukan");
+	const { approvalEnabled } = await getApplicationSettings();
+	assertRequiredApprovers(approvalEnabled, approverIds);
+	if (approvalEnabled) await assertValidApprovers(approverIds);
 	if (cal._count.items === 0) throw badRequest("Tambahkan minimal 1 jadwal konten sebelum mengajukan");
 
 	const isResubmit = cal.status === "REVISION";
 	const round = cal.revisionCount + (isResubmit ? 1 : 0);
+	const now = new Date();
 
 	await prisma.$transaction([
 		// Tanggal yang sudah disetujui tetap disetujui; sisanya direview (ulang)
 		prisma.calendarItem.updateMany({
-			where: { calendarId: id, status: { in: ["DRAFT", "REJECTED"] } },
-			data: { status: "PENDING", reviewNote: null, reviewedById: null, reviewedAt: null },
+			where: { calendarId: id, status: { in: ["DRAFT", "REJECTED", ...(!approvalEnabled ? ["PENDING" as const] : [])] } },
+			data: {
+				status: approvalEnabled ? "PENDING" : "APPROVED",
+				reviewNote: approvalEnabled ? null : AUTO_APPROVAL_MESSAGE,
+				reviewedById: null,
+				reviewedAt: approvalEnabled ? null : now,
+			},
 		}),
 		prisma.calendar.update({
 			where: { id },
 			data: {
-				status: "SUBMITTED",
-				submittedAt: new Date(),
+				status: approvalEnabled ? "SUBMITTED" : "APPROVED",
+				submittedAt: now,
+				approvedAt: approvalEnabled ? null : now,
 				revisionCount: round,
-				comments: { create: { authorId: user.id, action: "SUBMIT", message: message ?? null, round } },
+				comments: { create: [
+					{ authorId: user.id, action: "SUBMIT", message: message ?? null, round },
+					...(!approvalEnabled ? [{ authorId: user.id, action: "APPROVE" as const, message: AUTO_APPROVAL_MESSAGE, round }] : []),
+				] },
 			},
 		}),
 	]);
 
-	await notifyUsers(approverIds, {
+	if (approvalEnabled) await notifyUsers(approverIds, {
 		title: isResubmit ? "Kalender direvisi & diajukan ulang" : "Kalender konten baru menunggu review",
 		message: `${user.name} mengajukan kalender "${cal.title}"${isResubmit ? ` (revisi ke-${round})` : ""}.`,
 		link: linkOf(id),

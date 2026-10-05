@@ -10,6 +10,7 @@
     "build": "prisma generate && tsup",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "test:approval": "node --import tsx --test tests/approval.integration.test.mjs",
     "prisma:generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",

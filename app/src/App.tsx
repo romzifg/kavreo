@@ -17,6 +17,7 @@ const CalendarDetailPage = lazy(() => import("@/pages/calendars/CalendarDetailPa
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const UsersPage = lazy(() => import("@/pages/UsersPage").then((m) => ({ default: m.UsersPage })));
+const AiUsagePage = lazy(() => import("@/pages/AiUsagePage").then((m) => ({ default: m.AiUsagePage })));
 
 export default function App() {
 	return (
@@ -51,6 +52,7 @@ export default function App() {
 
 						<Route element={<RequireRole roles={["SUPERADMIN"]} />}>
 							<Route path="users" element={<UsersPage />} />
+							<Route path="ai-usage" element={<AiUsagePage />} />
 						</Route>
 					</Route>
 				</Route>

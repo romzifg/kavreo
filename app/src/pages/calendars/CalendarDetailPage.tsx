@@ -19,6 +19,7 @@ import {
 	useUpdateItem,
 } from "@/api/calendars";
 import { useContents } from "@/api/contents";
+import { useApplicationSettings } from "@/api/settings";
 import { ActivityTimeline, CommentBox } from "@/components/ui/ActivityTimeline";
 import { Avatar } from "@/components/ui/Avatar";
 import { Field } from "@/components/ui/Field";
@@ -419,6 +420,7 @@ export function CalendarDetailPage() {
 
 	const { data: cal, isLoading, error, refetch } = useCalendar(id);
 	const submit = useSubmitCalendar(id);
+	const settings = useApplicationSettings();
 	const approveAll = useApproveAll(id);
 	const del = useDeleteCalendar();
 	const addComment = useAddCalendarComment(id);
@@ -430,6 +432,7 @@ export function CalendarDetailPage() {
 	const [viewItemId, setViewItemId] = useState<string | null>(null);
 	const [submitOpen, setSubmitOpen] = useState(false);
 	const [submitNote, setSubmitNote] = useState("");
+	const [submitError, setSubmitError] = useState("");
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [approveAllOpen, setApproveAllOpen] = useState(false);
 
@@ -474,9 +477,15 @@ export function CalendarDetailPage() {
 	}
 
 	async function doSubmit() {
+		if (!settings.data || settings.isError) { toast.error("Tidak dapat memuat pengaturan approval"); return; }
+		if (settings.data.approvalEnabled && cal!.approvers.length === 0) {
+			setSubmitError("Pilih minimal 1 approver melalui menu Edit sebelum mengajukan.");
+			toast.error("Pilih minimal 1 approver sebelum mengajukan");
+			return;
+		}
 		try {
-			await submit.mutateAsync(submitNote.trim() || undefined);
-			toast.success("Kalender diajukan ke approval");
+			const saved = await submit.mutateAsync(submitNote.trim() || undefined);
+			toast.success(saved.status === "APPROVED" ? "Kalender dan seluruh jadwal langsung disetujui" : "Kalender diajukan ke approval");
 			setSubmitOpen(false);
 			setSubmitNote("");
 		} catch (err) {
@@ -722,7 +731,7 @@ export function CalendarDetailPage() {
 						<button className="btn btn-ghost" onClick={() => setSubmitOpen(false)}>
 							Batal
 						</button>
-						<button className="btn btn-primary" onClick={() => void doSubmit()} disabled={submit.isPending}>
+						<button className="btn btn-primary" onClick={() => void doSubmit()} disabled={submit.isPending || !settings.data || settings.isError}>
 							{submit.isPending && <span className="loading loading-spinner loading-sm" />}
 							Ajukan
 						</button>
@@ -730,14 +739,14 @@ export function CalendarDetailPage() {
 				}
 			>
 				<p className="mb-3 text-sm text-base-content/70">
-					{total} jadwal akan dikirim ke {cal.approvers.length} approval.
-					{cal.status === "REVISION" && " Tanggal yang sudah disetujui tidak perlu direview ulang."} Kalender tidak bisa diedit sampai semua
-					tanggal diputuskan.
+					{settings.data?.approvalEnabled === false ? `${total} jadwal langsung disetujui karena approval nonaktif. Kalender tidak bisa diedit setelah diajukan.` : <>{total} jadwal akan dikirim ke {cal.approvers.length} approval. {cal.status === "REVISION" && "Tanggal yang sudah disetujui tidak perlu direview ulang. "}Kalender tidak bisa diedit sampai semua tanggal diputuskan.</>}
 				</p>
+				{settings.isError && <p role="alert" className="mb-3 text-sm text-error">{getErrorMessage(settings.error)} <button className="btn btn-ghost btn-sm" onClick={() => void settings.refetch()}>Coba lagi</button></p>}
+				{submitError && settings.data?.approvalEnabled && cal.approvers.length === 0 && <p role="alert" className="mb-3 text-sm text-error">{submitError} <Link className="link" to={`/calendars/${id}/edit`}>Pilih approver</Link></p>}
 				<textarea
 					className="textarea textarea-bordered w-full"
 					rows={3}
-					placeholder="Catatan untuk approval (opsional)"
+					placeholder="Catatan pengajuan (opsional)"
 					value={submitNote}
 					onChange={(e) => setSubmitNote(e.target.value)}
 				/>

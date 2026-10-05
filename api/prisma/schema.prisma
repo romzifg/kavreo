@@ -54,6 +54,25 @@ enum Platform {
   OTHER
 }
 
+model ApplicationSettings {
+  id              String   @id @default("global")
+  approvalEnabled Boolean  @default(true) @map("approval_enabled")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  aiEnabled       Boolean  @default(true) @map("ai_enabled")
+  aiProtocol      String   @default("OLLAMA") @map("ai_protocol")
+  aiProviderName  String   @default("Ollama lokal") @map("ai_provider_name")
+  aiBaseUrl       String   @default("http://localhost:11434") @map("ai_base_url")
+  aiModel         String   @default("llama3:latest") @map("ai_model")
+  aiApiKey        String?  @map("ai_api_key")
+  aiMaxTokens     Int      @default(800) @map("ai_max_tokens")
+  aiDailyLimit    Int      @default(20) @map("ai_daily_limit")
+  aiTimeoutSec    Int      @default(180) @map("ai_timeout_sec")
+  aiInputPrice    Float    @default(0) @map("ai_input_price")
+  aiOutputPrice   Float    @default(0) @map("ai_output_price")
+
+  @@map("application_settings")
+}
+
 model User {
   id              String   @id @default(cuid())
   name            String
@@ -75,8 +94,29 @@ model User {
   calendarComments   CalendarComment[]
   reviewedItems      CalendarItem[]    @relation("ItemReviewer")
   notifications      Notification[]
+  aiUsage            AiUsage[]
 
   @@map("users")
+}
+
+model AiUsage {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  feature      String
+  provider     String
+  model        String
+  status       String   @default("PENDING")
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  costUsd      Float?   @map("cost_usd")
+  durationMs   Int?     @map("duration_ms")
+  errorCode    String?  @map("error_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt, status])
+  @@map("ai_usage")
 }
 
 model Content {

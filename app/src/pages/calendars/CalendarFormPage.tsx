@@ -7,7 +7,8 @@ import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useCalendar, useCreateCalendar, useUpdateCalendar } from "@/api/calendars";
-import { ApproverPicker } from "@/components/ui/ApproverPicker";
+import { ApprovalAssignment } from "@/components/ui/ApprovalAssignment";
+import { useApplicationSettings } from "@/api/settings";
 import { Field } from "@/components/ui/Field";
 import { ErrorState, PageLoader } from "@/components/ui/Loading";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -38,6 +39,7 @@ export function CalendarFormPage() {
 	const existing = useCalendar(id);
 	const create = useCreateCalendar();
 	const update = useUpdateCalendar(id ?? "");
+	const settings = useApplicationSettings();
 
 	const today = new Date();
 	const {
@@ -81,6 +83,7 @@ export function CalendarFormPage() {
 	const onSubmit = handleSubmit(async (v) => {
 		try {
 			const payload = { ...v, description: v.description || null };
+			if (settings.data?.approvalEnabled === false) payload.approverIds = [];
 			const saved = isEdit ? await update.mutateAsync(payload) : await create.mutateAsync(payload);
 			toast.success(isEdit ? "Kalender diperbarui" : "Kalender dibuat. Tambahkan jadwal per tanggal.");
 			navigate(`/calendars/${saved.id}`);
@@ -98,7 +101,7 @@ export function CalendarFormPage() {
 			</Link>
 			<PageHeader
 				title={isEdit ? "Edit kalender" : "Kalender baru"}
-				subtitle="Tentukan periode dan approval. Jadwal per tanggal ditambahkan setelah kalender dibuat."
+				subtitle="Tentukan periode kalender. Jadwal per tanggal ditambahkan setelah draft kalender dibuat."
 			/>
 
 			<form onSubmit={onSubmit} noValidate className="grid max-w-3xl gap-6">
@@ -119,17 +122,11 @@ export function CalendarFormPage() {
 					</Field>
 				</section>
 
-				<section className="surface grid gap-3 p-5 sm:p-6">
-					<div>
-						<h2 className="font-bold">Approval</h2>
-						<p className="text-xs text-base-content/60">Pilih satu atau lebih approval yang akan mereview kalender ini.</p>
-					</div>
 					<Controller
 						control={control}
 						name="approverIds"
-						render={({ field }) => <ApproverPicker value={field.value} onChange={field.onChange} />}
+						render={({ field }) => <ApprovalAssignment value={field.value} onChange={field.onChange} />}
 					/>
-				</section>
 
 				<div className="flex gap-2">
 					<button className="btn btn-primary" disabled={busy}>

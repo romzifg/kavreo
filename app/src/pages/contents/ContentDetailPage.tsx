@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { useAddContentComment, useContent, useDeleteContent, useReviewContent, useSubmitContent } from "@/api/contents";
+import { useApplicationSettings } from "@/api/settings";
 import { ActivityTimeline, CommentBox } from "@/components/ui/ActivityTimeline";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState, PageLoader } from "@/components/ui/Loading";
@@ -44,12 +45,14 @@ export function ContentDetailPage({ type }: { type: ContentType }) {
 
 	const { data: c, isLoading, error, refetch } = useContent(id);
 	const submit = useSubmitContent(id);
+	const settings = useApplicationSettings();
 	const review = useReviewContent(id);
 	const addComment = useAddContentComment(id);
 	const del = useDeleteContent();
 
 	const [submitOpen, setSubmitOpen] = useState(false);
 	const [submitNote, setSubmitNote] = useState("");
+	const [submitError, setSubmitError] = useState("");
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [reviewMode, setReviewMode] = useState<"APPROVE" | "REJECT" | null>(null);
 	const [reviewNote, setReviewNote] = useState("");
@@ -64,9 +67,15 @@ export function ContentDetailPage({ type }: { type: ContentType }) {
 	const lastReject = [...(c.comments ?? [])].reverse().find((x) => x.action === "REJECT");
 
 	async function doSubmit() {
+		if (!settings.data || settings.isError) { toast.error("Tidak dapat memuat pengaturan approval"); return; }
+		if (settings.data.approvalEnabled && c!.approvers.length === 0) {
+			setSubmitError("Pilih minimal 1 approver melalui menu Edit sebelum mengajukan.");
+			toast.error("Pilih minimal 1 approver sebelum mengajukan");
+			return;
+		}
 		try {
-			await submit.mutateAsync(submitNote.trim() || undefined);
-			toast.success("Berhasil diajukan ke approval");
+			const saved = await submit.mutateAsync(submitNote.trim() || undefined);
+			toast.success(saved.status === "APPROVED" ? "Pengajuan langsung disetujui" : "Berhasil diajukan ke approval");
 			setSubmitOpen(false);
 			setSubmitNote("");
 		} catch (err) {
@@ -263,13 +272,13 @@ export function ContentDetailPage({ type }: { type: ContentType }) {
 			<Modal
 				open={submitOpen}
 				onClose={() => setSubmitOpen(false)}
-				title={c.status === "REVISION" ? "Ajukan ulang revisi" : "Ajukan ke approval"}
+				title={c.status === "REVISION" ? "Ajukan ulang revisi" : "Ajukan konten"}
 				footer={
 					<>
 						<button className="btn btn-ghost" onClick={() => setSubmitOpen(false)}>
 							Batal
 						</button>
-						<button className="btn btn-primary" onClick={() => void doSubmit()} disabled={submit.isPending}>
+						<button className="btn btn-primary" onClick={() => void doSubmit()} disabled={submit.isPending || !settings.data || settings.isError}>
 							{submit.isPending && <span className="loading loading-spinner loading-sm" />}
 							Ajukan
 						</button>
@@ -277,12 +286,14 @@ export function ContentDetailPage({ type }: { type: ContentType }) {
 				}
 			>
 				<p className="mb-3 text-sm text-base-content/70">
-					Akan dikirim ke {c.approvers.length} approval. Setelah diajukan, data tidak bisa diedit sampai ada keputusan.
+					{settings.data?.approvalEnabled === false ? "Approval nonaktif. Pengajuan langsung disetujui dan data tidak bisa diedit setelah diajukan." : `Akan dikirim ke ${c.approvers.length} approval. Setelah diajukan, data tidak bisa diedit sampai ada keputusan.`}
 				</p>
+				{settings.isError && <p role="alert" className="mb-3 text-sm text-error">{getErrorMessage(settings.error)} <button className="btn btn-ghost btn-sm" onClick={() => void settings.refetch()}>Coba lagi</button></p>}
+				{submitError && settings.data?.approvalEnabled && c.approvers.length === 0 && <p role="alert" className="mb-3 text-sm text-error">{submitError} <Link className="link" to={`${base}/${id}/edit`}>Pilih approver</Link></p>}
 				<textarea
 					className="textarea textarea-bordered w-full"
 					rows={3}
-					placeholder="Catatan untuk approval (opsional)"
+					placeholder="Catatan pengajuan (opsional)"
 					value={submitNote}
 					onChange={(e) => setSubmitNote(e.target.value)}
 				/>

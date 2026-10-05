@@ -49,7 +49,11 @@ export async function me(userId: string) {
 	return user;
 }
 
-export function updateProfile(userId: string, input: UpdateProfileInput) {
+export async function updateProfile(userId: string, input: UpdateProfileInput) {
+	if (input.notifyEmail !== undefined || input.notifyWhatsapp !== undefined) {
+		const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+		if (user?.role !== "SUPERADMIN") throw forbidden("Pengaturan notifikasi hanya dapat diubah oleh Superadmin");
+	}
 	return prisma.user.update({ where: { id: userId }, data: input, select: userSelect });
 }
 
