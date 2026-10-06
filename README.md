@@ -55,7 +55,7 @@ Saat mengembangkan skema, gunakan `npm run migrate:dev` untuk membuat migration 
 
 ```bash
 cd app
-cp .env.example .env        # VITE_API_URL=http://localhost:4000/api
+cp .env.example .env        # VITE_API_URL=/api
 npm install
 npm run dev                 # http://localhost:5173
 ```
@@ -102,7 +102,9 @@ cd api && npm ci && npm run build && npm run migrate:deploy && npm start
 cd app && npm ci && npm run build
 ```
 
-Checklist production: `NODE_ENV=production`, `JWT_SECRET` acak ≥ 32 karakter, `CORS_ORIGIN` = domain frontend, `APP_URL` = domain frontend, `TRUST_PROXY=1` jika di belakang reverse proxy, `VITE_API_URL` diisi sebelum build frontend, dan SPA fallback ke `index.html` di web server.
+Checklist production: `NODE_ENV=production`, `JWT_SECRET` acak ≥ 32 karakter, `CORS_ORIGIN` = domain frontend, `APP_URL` = domain frontend, `TRUST_PROXY=1` jika di belakang reverse proxy, dan SPA fallback ke `index.html` di web server. Frontend memakai `/api` secara default: arahkan `/api` ke backend dengan reverse proxy sebelum aturan SPA fallback. Jika backend memakai domain terpisah, isi `VITE_API_URL` dengan URL API publik sebelum build dan sesuaikan CORS.
+
+Pada development dan preview lokal, Vite meneruskan `/api` ke backend `127.0.0.1:4000`. Backend tetap harus berjalan. Dengan default ini, login dapat digunakan dari `localhost`, `127.0.0.1`, atau IP LAN tanpa mengarahkan browser HP ke `localhost` milik HP. Jika file `app/.env` lama memakai URL localhost absolut, ubah menjadi `VITE_API_URL=/api` lalu restart Vite.
 
 ## Pengaturan alur approval
 
@@ -118,6 +120,18 @@ API: `GET /api/settings` dapat dibaca semua pengguna yang login; `PATCH /api/set
 Deployment versi ini memerlukan `npm run migrate:deploy` dari folder `api`, lalu build/restart backend dan build frontend. Migrasi menambahkan tabel `application_settings` tanpa mengubah data konten yang sudah ada.
 
 Pengujian integrasi: jalankan `npm run test:approval` dari folder `api`. Tes memerlukan PostgreSQL lokal dan izin membuat database sementara. Tes membuat database terpisah dengan nama acak, menguji API HTTP dengan database nyata, lalu menghapus database sementara setelah selesai; database aplikasi tidak digunakan untuk fixture tes.
+
+## Penugasan pekerjaan
+
+Approver membuka **Pekerjaan → Assign pekerjaan baru**, memilih user aktif, jenis **Script video / Ide konten**, platform, judul, brief, dan deadline wajib di masa depan. Penugasan langsung menyiapkan draft milik user dengan reviewer pemberi tugas. User menerima notifikasi dan melihat task pada dashboard serta menu **Pekerjaan**, diurutkan berdasarkan deadline terdekat.
+
+Tombol **Kerjakan / Lanjutkan / Perbaiki** membuka editor draft tersebut. Menyimpan perubahan pertama mengubah task dari **Belum dikerjakan** menjadi **Sedang dikerjakan**; setelah diajukan status menjadi **Menunggu review**, lalu **Perlu revisi** atau **Selesai**. Task selesai saat konten disetujui, bukan sekadar diajukan. User dapat memfilter status dan pekerjaan yang melewati deadline. Deadline dikirim sebagai waktu UTC dan ditampilkan mengikuti zona waktu perangkat; pekerjaan terlambat tetap dapat dikerjakan dan diajukan.
+
+Reviewer penugasan dikunci di UI dan backend kepada pemberi tugas. Approver lain tidak bisa membaca daftar penugasan tersebut atau mereview hasilnya. Alur global tetap berlaku: jika approval nonaktif, pengajuan langsung disetujui dan task selesai; jika aktif, pemberi tugas melakukan review. User masih bisa membuat konten sendiri dengan alur pemilihan approver sebelumnya. Pemberi tugas dapat memperbarui brief/deadline sebelum pekerjaan selesai; perubahan mengirim notifikasi kepada penerima.
+
+Konten penugasan dan akun yang memiliki riwayat penugasan tidak dapat dihapus agar riwayat tetap terjaga; akun dapat dinonaktifkan. Role akun tidak dapat diganti selama masih mempunyai pekerjaan aktif. Superadmin dapat melihat seluruh penugasan. Tidak ada pengingat deadline otomatis pada fitur ini.
+
+API: `GET /api/tasks` (scope sesuai role, pagination, filter status), `GET /api/tasks/assignees`, `POST /api/tasks`, dan `PATCH /api/tasks/:id` (mutasi hanya untuk approver pemberi tugas). Deploy perlu menjalankan `npm run migrate:deploy` dari direktori `api` untuk migration `20261006010000_work_tasks`.
 
 ## Bantuan AI dan pemantauan
 
@@ -161,7 +175,7 @@ Service worker menyimpan aset tampilan sehingga app shell dapat dibuka kembali t
 Untuk deployment:
 
 - Sajikan frontend dan API melalui **HTTPS**. HTTP localhost dapat dipakai untuk pengujian pada komputer sendiri; alamat LAN HTTP tidak cukup untuk pemasangan PWA di HP.
-- Isi `VITE_API_URL` dengan alamat API yang dapat diakses perangkat sebelum build. `localhost` di HP merujuk ke HP tersebut. Sesuaikan `CORS_ORIGIN` dengan origin frontend.
+- Gunakan `/api` dengan reverse proxy pada production, atau isi `VITE_API_URL` dengan alamat API publik yang dapat diakses perangkat sebelum build. `localhost` di HP merujuk ke HP tersebut. Untuk API pada domain terpisah, sesuaikan `CORS_ORIGIN` dengan origin frontend.
 - Sajikan seluruh `app/dist`, termasuk `manifest.webmanifest`, `sw.js`, `workbox-*.js`, dan folder `icons`. Gunakan MIME `application/manifest+json` untuk manifest dan JavaScript untuk service worker.
 - Terapkan SPA fallback ke `index.html` untuk rute aplikasi, tetapi jangan mengubah permintaan API atau aset yang hilang menjadi HTML. Berikan `Cache-Control: no-cache` pada `sw.js` dan `index.html`; aset dengan nama hash dapat memakai cache immutable.
 - Konfigurasi saat ini menggunakan root domain (`/`). Deployment di subfolder memerlukan penyesuaian Vite base, scope/start URL manifest, dan path ikon.

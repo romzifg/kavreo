@@ -95,6 +95,8 @@ model User {
   reviewedItems      CalendarItem[]    @relation("ItemReviewer")
   notifications      Notification[]
   aiUsage            AiUsage[]
+  assignedWork       WorkTask[] @relation("TaskAssignee")
+  givenWork          WorkTask[] @relation("TaskAssigner")
 
   @@map("users")
 }
@@ -147,10 +149,30 @@ model Content {
   approvers ContentApprover[]
   comments  ContentComment[]
   calendarItems CalendarItem[]
+  workTask WorkTask?
 
   @@index([authorId, type, status])
   @@index([type, status])
   @@map("contents")
+}
+
+model WorkTask {
+  id         String @id @default(cuid())
+  title      String
+  brief      String
+  deadline   DateTime
+  assigneeId String @map("assignee_id")
+  assignerId String @map("assigner_id")
+  contentId  String @unique @map("content_id")
+  startedAt  DateTime? @map("started_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  assignee User @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  assigner User @relation("TaskAssigner", fields: [assignerId], references: [id], onDelete: Restrict)
+  content Content @relation(fields: [contentId], references: [id], onDelete: Restrict)
+  @@index([assigneeId, deadline])
+  @@index([assignerId, deadline])
+  @@map("work_tasks")
 }
 
 model ContentApprover {

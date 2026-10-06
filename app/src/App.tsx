@@ -18,6 +18,7 @@ const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then((m
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const UsersPage = lazy(() => import("@/pages/UsersPage").then((m) => ({ default: m.UsersPage })));
 const AiUsagePage = lazy(() => import("@/pages/AiUsagePage").then((m) => ({ default: m.AiUsagePage })));
+const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default: m.TasksPage })));
 
 export default function App() {
 	return (
@@ -31,6 +32,7 @@ export default function App() {
 				<Route element={<RequireAuth />}>
 					<Route element={<AppLayout />}>
 						<Route index element={<DashboardPage />} />
+						<Route path="tasks" element={<TasksPage />} />
 
 						<Route path="scripts" element={<ContentListPage type="SCRIPT" />} />
 						<Route path="scripts/new" element={<ContentFormPage type="SCRIPT" />} />

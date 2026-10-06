@@ -35,6 +35,7 @@ function useRefresh() {
   const qc = useQueryClient();
   return () => {
     void qc.invalidateQueries({ queryKey: ["contents"] });
+    void qc.invalidateQueries({ queryKey: ["tasks"] });
     void qc.invalidateQueries({ queryKey: ["dashboard"] });
     void qc.invalidateQueries({ queryKey: ["notifications"] });
   };

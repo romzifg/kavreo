@@ -146,7 +146,7 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 		}
 		clearErrors("approverIds");
 		const payload = toPayload(type, values);
-		if (settings.data?.approvalEnabled === false) payload.approverIds = [];
+		if (settings.data?.approvalEnabled === false && !existing.data?.workTask) payload.approverIds = [];
 		try {
 			let savedId = id;
 			let saved: Content;
@@ -293,11 +293,11 @@ export function ContentFormPage({ type }: { type: ContentType }) {
 				</div>
 
 				<aside className="grid content-start gap-6">
-						<Controller
+                        {existing.data?.workTask ? <section className="surface p-5"><h2 className="font-bold">Pekerjaan dari {existing.data.workTask.assigner.name}</h2><p className="mt-2 text-sm">Deadline: {new Date(existing.data.workTask.deadline).toLocaleString("id-ID")}</p><p className="mt-3 whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{existing.data.workTask.brief}</p><p className="mt-3 text-xs text-primary">Approval dikunci kepada pemberi tugas.</p><Link className="btn btn-sm btn-ghost mt-2" to="/tasks">Daftar pekerjaan</Link></section> : <Controller
 							control={control}
 							name="approverIds"
 							render={({ field }) => <ApprovalAssignment value={field.value} onChange={(ids) => { field.onChange(ids); clearErrors("approverIds"); }} error={errors.approverIds?.message} />}
-						/>
+						/>}
 
 					<div className="surface grid gap-2 p-4">
 						<button type="button" className="btn btn-primary" disabled={busy || !settings.data || settings.isError} onClick={handleSubmit((v) => save(v, true))}>

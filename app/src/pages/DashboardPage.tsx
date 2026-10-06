@@ -1,6 +1,7 @@
 import { ArrowRight, CalendarDays, Clapperboard, FileText, Lightbulb, Plus, RotateCcw, Sparkles, Users } from "lucide-react";
 import { Link } from "react-router";
 import { useDashboard } from "@/api/dashboard";
+import { TaskList } from "@/components/ui/TaskList";
 import { Avatar } from "@/components/ui/Avatar";
 import { ErrorState, PageLoader } from "@/components/ui/Loading";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -111,6 +112,7 @@ export function DashboardPage() {
 				</span>
 			</section>
 
+            <TaskList compact />
 			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 				<StatCard to="/scripts" title="Script video" icon={FileText} counts={data.contents.SCRIPT} tint="bg-primary/10 text-primary" />
 				<StatCard to="/ideas" title="Ide konten" icon={Lightbulb} counts={data.contents.IDEA} tint="bg-warning/20 text-warning-content" />

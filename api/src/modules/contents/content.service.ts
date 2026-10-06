@@ -14,6 +14,7 @@ const TYPE_PATH: Record<ContentType, string> = { SCRIPT: "/scripts", IDEA: "/ide
 const EDITABLE: ReviewStatus[] = ["DRAFT", "REVISION"];
 
 const listInclude = {
+ workTask: { include: { assigner: { select: publicUserSelect } } },
 	author: { select: publicUserSelect },
 	approvers: { include: { approver: { select: publicUserSelect } } },
 	_count: { select: { comments: true } },
@@ -139,7 +140,7 @@ export async function createContent(user: AuthUser, input: CreateContentInput) {
 async function findOwn(user: AuthUser, id: string) {
 	const content = await prisma.content.findUnique({
 		where: { id },
-		include: { approvers: { select: { approverId: true } } },
+		include: { approvers: { select: { approverId: true } }, workTask: true },
 	});
 	if (!content || content.authorId !== user.id) throw notFound("Data tidak ditemukan");
 	return content;
@@ -151,9 +152,13 @@ export async function updateContent(user: AuthUser, id: string, input: UpdateCon
 		throw badRequest("Data yang sedang direview atau sudah disetujui tidak dapat diedit");
 	}
 	if (input.approverIds) await assertValidApprovers(input.approverIds);
+	if (existing.workTask && input.approverIds && (input.approverIds.length !== 1 || input.approverIds[0] !== existing.workTask.assignerId)) {
+  throw badRequest("Approval pekerjaan harus tetap kepada approver pemberi tugas");
+ }
 
 	const { approverIds, ...data } = input;
 	await prisma.$transaction(async (tx) => {
+		if (existing.workTask && !existing.workTask.startedAt) await tx.workTask.update({ where: { id: existing.workTask.id }, data: { startedAt: new Date() } });
 		await tx.content.update({
 			where: { id },
 			data: { ...data, durationSec: data.durationSec === undefined ? undefined : data.durationSec },
@@ -169,8 +174,9 @@ export async function updateContent(user: AuthUser, id: string, input: UpdateCon
 }
 
 export async function deleteContent(user: AuthUser, id: string) {
-	const content = await prisma.content.findUnique({ where: { id }, select: { authorId: true, status: true } });
+	const content = await prisma.content.findUnique({ where: { id }, select: { authorId: true, status: true, workTask: { select: { id: true } } } });
 	if (!content) throw notFound("Data tidak ditemukan");
+	if (content.workTask) throw badRequest("Konten penugasan tidak dapat dihapus agar pekerjaan tetap dapat dipantau");
 	if (user.role === "SUPERADMIN") {
 		await prisma.content.delete({ where: { id } });
 		return;
@@ -183,7 +189,7 @@ export async function deleteContent(user: AuthUser, id: string) {
 export async function submitContent(user: AuthUser, id: string, message?: string | null) {
 	const content = await findOwn(user, id);
 	if (!EDITABLE.includes(content.status)) throw badRequest("Data ini sudah diajukan");
-	const approverIds = content.approvers.map((a) => a.approverId);
+	const approverIds = content.workTask ? [content.workTask.assignerId] : content.approvers.map((a) => a.approverId);
 	const { approvalEnabled } = await getApplicationSettings();
 	assertSubmittable(content, approverIds, approvalEnabled);
 	if (approvalEnabled) await assertValidApprovers(approverIds);

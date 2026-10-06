@@ -63,6 +63,10 @@ export async function createUser(input: CreateUserInput) {
 }
 
 export async function updateUser(id: string, input: UpdateUserInput, actorId: string) {
+ if (input.role && await prisma.workTask.count({ where: { OR: [{ assigneeId: id }, { assignerId: id }], content: { status: { not: "APPROVED" } } } })) {
+  const current = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+  if (current && current.role !== input.role) throw badRequest("Selesaikan pekerjaan aktif sebelum mengubah role akun");
+ }
 	const user = await prisma.user.findUnique({ where: { id }, select: { id: true } });
 	if (!user) throw notFound("User tidak ditemukan");
 
@@ -83,6 +87,7 @@ export async function updateUser(id: string, input: UpdateUserInput, actorId: st
 }
 
 export async function deleteUser(id: string, actorId: string) {
+	if (await prisma.workTask.count({ where: { OR: [{ assigneeId: id }, { assignerId: id }] } })) throw badRequest("Akun memiliki riwayat penugasan. Nonaktifkan akun agar riwayat tetap tersimpan.");
 	if (id === actorId) throw badRequest("Anda tidak dapat menghapus akun sendiri");
 	const user = await prisma.user.findUnique({ where: { id }, select: { id: true } });
 	if (!user) throw notFound("User tidak ditemukan");

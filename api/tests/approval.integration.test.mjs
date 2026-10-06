@@ -333,3 +333,76 @@ test("AI daily quota and disable switch cannot be bypassed; parallel requests re
   finally { release(); }
   await first;
 });
+
+const taskDeadline = () => new Date(Date.now() + 3 * 86400000).toISOString();
+async function taskPayload(type = "SCRIPT") {
+ const user = await success("/auth/me");
+ return { title: `Pekerjaan ${type}`, brief: "Buat konten untuk kreator pemula dengan contoh konkret.", deadline: taskDeadline(), assigneeId: user.id, type, platform: "TIKTOK" };
+}
+test("tasks: mandatory future deadline, role enforcement, active user validation, draft and notification", async () => {
+ const input = await taskPayload();
+ for (const role of ["USER", "SUPERADMIN"]) assert.equal((await request("/tasks", "POST", input, role)).status, 403);
+ assert.equal((await request("/tasks", "GET", undefined, null)).status, 401);
+ for (const extra of [{ deadline: undefined }, { deadline: "2020-01-01T00:00:00Z" }, { brief: "" }, { assigneeId: approver.id }]) {
+  const result = await request("/tasks", "POST", { ...input, ...extra }, "APPROVER");
+  assert.ok([400,422].includes(result.status));
+ }
+ const task = await success("/tasks", "POST", input, "APPROVER", 201);
+ assert.equal(task.status, "TODO");
+ const content = await success(`/contents/${task.content.id}`);
+ assert.equal(content.author.id, input.assigneeId);
+ assert.deepEqual(content.approvers.map(a => a.id), [approver.id]);
+ assert.equal(content.workTask.id, task.id);
+ assert.ok(await prisma.notification.findFirst({where:{userId:input.assigneeId,link:"/tasks"}}));
+ assert.equal((await request(`/contents/${task.content.id}`,"DELETE")).status,400);
+ assert.equal((await request(`/users/${input.assigneeId}`,"DELETE",undefined,"SUPERADMIN")).status,400);
+ assert.equal((await request(`/users/${input.assigneeId}`,"PATCH",{role:"APPROVER"},"SUPERADMIN")).status,400);
+ const inactive = await prisma.user.create({data:{name:"Inactive recipient",email:"inactive-task@example.test",role:"USER",isActive:false,passwordHash:"unused"}});
+ assert.equal((await request("/tasks","POST",{...input,assigneeId:inactive.id},"APPROVER")).status,400);
+});
+for(const type of ["SCRIPT","IDEA"]) test(`assigned ${type}: only assigner reviews; locked approver; draft -> work -> review -> revision -> complete`,async()=>{
+ await setApproval(true);
+ const task=await success("/tasks","POST",await taskPayload(type),"APPROVER",201);
+ const otherApprover=await prisma.user.create({data:{name:"Other reviewer",email:`other-${type}@example.test`,role:"APPROVER",passwordHash:"unused"}});
+ const otherUser=await prisma.user.create({data:{name:"Other user",email:`other-user-${type}@example.test`,role:"USER",passwordHash:"unused"}});
+ tokens.OTHER_APPROVER=jwt.sign({sub:otherApprover.id},process.env.JWT_SECRET);
+ tokens.OTHER_USER=jwt.sign({sub:otherUser.id},process.env.JWT_SECRET);
+ assert.ok(!(await success("/tasks?status=ALL","GET",undefined,"OTHER_APPROVER")).some(t=>t.id===task.id));
+ assert.ok(!(await success("/tasks?status=ALL","GET",undefined,"OTHER_USER")).some(t=>t.id===task.id));
+ assert.equal((await request(`/contents/${task.content.id}`,"PATCH",{body:"stolen"},"OTHER_USER")).status,404);
+ assert.equal((await request(`/contents/${task.content.id}`,"PATCH",{approverIds:[]})).status,400);
+ assert.equal((await request(`/contents/${task.content.id}`,"PATCH",{approverIds:[otherApprover.id]})).status,400);
+ const fields=type==="SCRIPT"?{body:"<p>Script lengkap</p>"}:{description:"<p>Ide lengkap</p>"};
+ await success(`/contents/${task.content.id}`,"PATCH",fields);
+ assert.ok((await success("/tasks?status=IN_PROGRESS")).some(t=>t.id===task.id));
+ const submitted=await success(`/contents/${task.content.id}/submit`,"POST",{});
+ assert.equal(submitted.status,"SUBMITTED");
+ assert.equal((await request(`/contents/${task.content.id}/review`,"POST",{action:"APPROVE"},"OTHER_APPROVER")).status,404);
+ await success(`/contents/${task.content.id}/review`,"POST",{action:"REJECT",message:"Tambah contoh yang relevan"},"APPROVER");
+ assert.ok((await success("/tasks?status=REVISION")).some(t=>t.id===task.id));
+ await success(`/contents/${task.content.id}`,"PATCH",fields);
+ await success(`/contents/${task.content.id}/submit`,"POST",{});
+ await success(`/contents/${task.content.id}/review`,"POST",{action:"APPROVE"},"APPROVER");
+ assert.ok((await success("/tasks?status=APPROVED")).some(t=>t.id===task.id));
+ assert.ok(!(await success("/tasks")).some(t=>t.id===task.id));
+});
+test("tasks: owner-only deadline edits, overdue filters, completed protection and global auto approval",async()=>{
+ const input=await taskPayload("IDEA"),task=await success("/tasks","POST",input,"APPROVER",201);
+ const change={title:input.title,brief:"Brief diperbarui dengan arahan baru",deadline:taskDeadline()};
+ assert.equal((await request(`/tasks/${task.id}`,"PATCH",change)).status,403);
+ assert.equal((await request(`/tasks/${task.id}`,"PATCH",change,"OTHER_APPROVER")).status,404);
+ const edited=await success(`/tasks/${task.id}`,"PATCH",change,"APPROVER");
+ assert.equal(edited.brief,change.brief);
+ await prisma.workTask.update({where:{id:task.id},data:{deadline:new Date(Date.now()-60000)}});
+ const overdue=(await success("/tasks?status=OVERDUE")).find(t=>t.id===task.id);
+ assert.equal(overdue.overdue,true);
+ await setApproval(false);
+ assert.equal((await request(`/contents/${task.content.id}`,"PATCH",{approverIds:[]})).status,400);
+ await success(`/contents/${task.content.id}`,"PATCH",{description:"<p>Ide selesai</p>",approverIds:[approver.id]});
+ const approved=await success(`/contents/${task.content.id}/submit`,"POST",{});
+ assert.equal(approved.status,"APPROVED");
+ assert.equal(approved.approvers[0].id,approver.id);
+ assert.ok(!(await success("/tasks?status=OVERDUE")).some(t=>t.id===task.id));
+ assert.equal((await request(`/tasks/${task.id}`,"PATCH",change,"APPROVER")).status,400);
+ await setApproval(true);
+});

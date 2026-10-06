@@ -36,6 +36,7 @@ export interface ContentComment {
 }
 
 export interface Content {
+ workTask?: { id:string; title:string; brief:string; deadline:string; assignerId:string; assigner:PublicUser } | null;
 	id: string;
 	type: ContentType;
 	title: string;

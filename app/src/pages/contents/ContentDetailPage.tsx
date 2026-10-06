@@ -63,7 +63,7 @@ export function ContentDetailPage({ type }: { type: ContentType }) {
 	const isAuthor = c.author.id === user.id;
 	const editable = isAuthor && (c.status === "DRAFT" || c.status === "REVISION");
 	const canReview = user.role === "APPROVER" && c.status === "SUBMITTED" && c.approvers.some((a) => a.id === user.id);
-	const canDelete = editable || user.role === "SUPERADMIN";
+	const canDelete = !c.workTask && (editable || user.role === "SUPERADMIN");
 	const lastReject = [...(c.comments ?? [])].reverse().find((x) => x.action === "REJECT");
 
 	async function doSubmit() {
@@ -124,6 +124,7 @@ export function ContentDetailPage({ type }: { type: ContentType }) {
 				<ArrowLeft className="size-4" /> Kembali
 			</Link>
 
+            {c.workTask && <section className="surface mb-6 p-5"><Link to="/tasks" className="font-bold text-primary">Penugasan: {c.workTask.title}</Link><p className="mt-2 text-sm">Dari {c.workTask.assigner.name} · Deadline {formatDateTime(c.workTask.deadline)}</p><p className="mt-3 whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{c.workTask.brief}</p></section>}
 			<header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 				<div className="min-w-0">
 					<div className="flex flex-wrap items-center gap-2">

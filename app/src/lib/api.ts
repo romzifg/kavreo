@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import { useAuthStore } from "@/stores/auth.store";
 
 export const api = axios.create({
-	baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:4000/api",
+	baseURL: import.meta.env.VITE_API_URL?.trim() || "/api",
 	timeout: 20000,
 });
 

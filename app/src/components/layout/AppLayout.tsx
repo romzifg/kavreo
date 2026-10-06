@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
 	{ to: "/scripts", label: "Script Video", icon: FileText },
 	{ to: "/ideas", label: "Ide Konten", icon: Lightbulb },
 	{ to: "/calendars", label: "Kalender", icon: CalendarDays },
+ { to: "/tasks", label: "Pekerjaan", icon: FileText },
 	{ to: "/users", label: "Pengguna", icon: Users, roles: ["SUPERADMIN"] },
 	{ to: "/ai-usage", label: "Pemakaian AI", icon: Sparkles, roles: ["SUPERADMIN"] },
 ];

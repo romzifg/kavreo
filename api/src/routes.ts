@@ -8,6 +8,7 @@ import { notificationRoutes } from "./modules/notifications/notification.routes"
 import { userRoutes } from "./modules/users/user.routes";
 import { settingsRoutes } from "./modules/settings/settings.routes";
 import { aiRoutes } from "./modules/ai/ai.routes";
+import { taskRoutes } from "./modules/tasks/task.routes";
 
 export const routes = Router();
 
@@ -22,3 +23,4 @@ routes.use("/notifications", notificationRoutes);
 routes.use("/users", userRoutes);
 routes.use("/settings", settingsRoutes);
 routes.use("/ai", aiRoutes);
+routes.use("/tasks", taskRoutes);

@@ -4,6 +4,9 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// Keep browser requests on the frontend origin, including LAN/mobile access.
+const apiProxy = { "/api": { target: "http://127.0.0.1:4000", changeOrigin: true } };
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), VitePWA({
     registerType: "prompt",
@@ -32,6 +35,6 @@ export default defineConfig({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
-  server: { port: 5173, host: true },
-  preview: { port: 4173, host: true },
+  server: { port: 5173, host: true, proxy: apiProxy },
+  preview: { port: 4173, host: true, proxy: apiProxy },
 });
